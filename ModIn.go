@@ -97,8 +97,6 @@ func Count() {
 }
 func Header() {
 	ClearScreen()
-	fmt.Print("\033[2J")
-	fmt.Print("\033[H")
 	fmt.Println("============================================")
 	fmt.Println("              ModsIn v1.0")
 	fmt.Println("       Minecraft Modpack Manager")
