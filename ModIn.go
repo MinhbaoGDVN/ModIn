@@ -35,7 +35,6 @@ func main() {
 }
 func Menu() {
 	for {
-		ClearScreen()
 		Count()
 		Header()
 		fmt.Printf("So luong Modpack : %d\n", COUNT)
@@ -47,7 +46,6 @@ func Menu() {
 		for _, file := range files {
 			fmt.Println(filepath.Base(file))
 		}
-		ClearScreen()
 		fmt.Println()
 		fmt.Println("==========================")
 		fmt.Println()
@@ -100,7 +98,6 @@ func Header() {
 	fmt.Println()
 }
 func Create() {
-	ClearScreen()
 	Header()
 	fmt.Println("Tao Modpack")
 	fmt.Println()
@@ -126,7 +123,6 @@ func Create() {
 	Pause()
 }
 func List() {
-	ClearScreen()
 	Header()
 	fmt.Println("Danh sach Modpack")
 	fmt.Println()
@@ -140,7 +136,6 @@ func List() {
 	Pause()
 }
 func Switch() {
-	ClearScreen()
 	Header()
 	fmt.Println("Danh sach Modpack")
 	fmt.Println()
