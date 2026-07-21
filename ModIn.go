@@ -37,11 +37,11 @@ func Menu() {
 	for {
 		Count()
 		Header()
-		fmt.Printf("So luong Modpack : %d\n", COUNT)
-		fmt.Printf("Thu muc Mods     : %s\n", MC)
-		fmt.Printf("So Mods hien tai : %d\n", MODS)
+		fmt.Printf("Modpacks     : %d\n", COUNT)
+		fmt.Printf("Mods Folder  : %s\n", MC)
+		fmt.Printf("Current Mods : %d\n", MODS)
 		fmt.Println()
-		fmt.Println("===== Mods hien tai =====")
+		fmt.Println("===== Current Mods =====")
 		files, _ := filepath.Glob(filepath.Join(MC, "*.jar"))
 		for _, file := range files {
 			fmt.Println(filepath.Base(file))
@@ -49,12 +49,12 @@ func Menu() {
 		fmt.Println()
 		fmt.Println("==========================")
 		fmt.Println()
-		fmt.Println("1. Tao Modpack")
-		fmt.Println("2. Danh sach Modpack")
-		fmt.Println("3. Chuyen Modpack")
-		fmt.Println("0. Thoat")
+		fmt.Println("1. Create Modpack")
+		fmt.Println("2. List Modpacks")
+		fmt.Println("3. Switch Modpack")
+		fmt.Println("0. Exit")
 		fmt.Println()
-		fmt.Print("Lua chon: ")
+		fmt.Print("Select: ")
 		reader := bufio.NewReader(os.Stdin)
 		CHOICE, _ = reader.ReadString('\n')
 		CHOICE = strings.TrimSpace(CHOICE)
@@ -99,9 +99,9 @@ func Header() {
 }
 func Create() {
 	Header()
-	fmt.Println("Tao Modpack")
+	fmt.Println("Create Modpack")
 	fmt.Println()
-	fmt.Print("Nhap ten: ")
+	fmt.Print("Enter Name: ")
 	reader := bufio.NewReader(os.Stdin)
 	NAME, _ = reader.ReadString('\n')
 	NAME = strings.TrimSpace(NAME)
@@ -110,21 +110,21 @@ func Create() {
 	}
 	if _, err := os.Stat(filepath.Join(PACKS, NAME)); err == nil {
 		fmt.Println()
-		fmt.Println("Modpack da ton tai.")
+		fmt.Println("Modpack already exists.")
 		Pause()
 		return
 	}
 	os.Mkdir(filepath.Join(PACKS, NAME), os.ModePerm)
 	fmt.Println()
-	fmt.Println("Da tao:")
+	fmt.Println("Created:")
 	fmt.Println(filepath.Join(PACKS, NAME))
 	fmt.Println()
-	fmt.Println("Copy file .jar vao thu muc tren.")
+	fmt.Println("Place your .jar files into this folder.")
 	Pause()
 }
 func List() {
 	Header()
-	fmt.Println("Danh sach Modpack")
+	fmt.Println("List Modpacks")
 	fmt.Println()
 	dirs, _ := os.ReadDir(PACKS)
 	for _, dir := range dirs {
@@ -137,7 +137,7 @@ func List() {
 }
 func Switch() {
 	Header()
-	fmt.Println("Danh sach Modpack")
+	fmt.Println("List Modpacks")
 	fmt.Println()
 	ID := 0
 	Names := make(map[int]string)
@@ -150,7 +150,7 @@ func Switch() {
 		}
 	}
 	fmt.Println()
-	fmt.Print("Chon: ")
+	fmt.Print("Select: ")
 	reader := bufio.NewReader(os.Stdin)
 	CHOOSE, _ = reader.ReadString('\n')
 	CHOOSE = strings.TrimSpace(CHOOSE)
@@ -159,7 +159,7 @@ func Switch() {
 	TARGET = Names[index]
 	if TARGET == "" {
 		fmt.Println()
-		fmt.Println("Lua chon khong hop le.")
+		fmt.Println("Invalid selection.")
 		Pause()
 		return
 	}
@@ -174,15 +174,15 @@ func Switch() {
 		return
 	}
 	fmt.Println()
-	fmt.Println("Mods hien tai")
+	fmt.Println("Current Mods")
 	fmt.Println()
 	for _, file := range files {
 		fmt.Println(filepath.Base(file))
 	}
 	fmt.Println()
-	fmt.Println("[Y] Luu thanh Modpack moi")
-	fmt.Println("[N] Khong luu")
-	fmt.Println("[C] Huy")
+	fmt.Println("[Y] Yes")
+	fmt.Println("[N] No")
+	fmt.Println("[C] Cancel")
 	fmt.Print("> ")
 	answer, _ := reader.ReadString('\n')
 	answer = strings.TrimSpace(strings.ToUpper(answer))
@@ -252,12 +252,12 @@ func CopyOnly() {
 		CopyFile(file, dst)
 	}
 	fmt.Println()
-	fmt.Printf("Da chuyen sang %s.\n", TARGET)
+	fmt.Printf("Switched to %s.\n", TARGET)
 	Pause()
 }
 func Duplicate() {
 	fmt.Println()
-	fmt.Printf("Da xoa vi toan bo file trong game giong voi Modpack \"%s\".\n", DUPLICATE)
+	fmt.Printf("Current mods matched Modpack '%s'. Replacing...\n", DUPLICATE)
 	fmt.Println()
 	files, _ := filepath.Glob(filepath.Join(MC, "*.jar"))
 	for _, file := range files {
@@ -272,7 +272,7 @@ func Duplicate() {
 }
 func Save() {
 	fmt.Println()
-	fmt.Print("Ten Modpack moi: ")
+	fmt.Print("New Modpack Name: ")
 	reader := bufio.NewReader(os.Stdin)
 	NEWNAME, _ := reader.ReadString('\n')
 	NEWNAME = strings.TrimSpace(NEWNAME)
@@ -281,7 +281,7 @@ func Save() {
 	}
 	if _, err := os.Stat(filepath.Join(PACKS, NEWNAME)); err == nil {
 		fmt.Println()
-		fmt.Println("Modpack da ton tai.")
+		fmt.Println("Modpack already exists.")
 		Pause()
 		return
 	}
@@ -297,12 +297,12 @@ func Save() {
 		CopyFile(file, dst)
 	}
 	fmt.Println()
-	fmt.Println("Da luu Modpack.")
-	fmt.Printf("Da chuyen sang %s.\n", TARGET)
+	fmt.Println("Modpack saved.")
+	fmt.Printf("Switched to %s.\n", TARGET)
 	Pause()
 }
 func Delete() {
-	fmt.Print("Xoa toan bo Mods (Y/N): ")
+	fmt.Print("Delete all current mods? (Y/N): ")
 	reader := bufio.NewReader(os.Stdin)
 	answer, _ := reader.ReadString('\n')
 	answer = strings.TrimSpace(strings.ToUpper(answer))
@@ -319,12 +319,12 @@ func Delete() {
 		CopyFile(file, dst)
 	}
 	fmt.Println()
-	fmt.Printf("Da chuyen sang %s.\n", TARGET)
+	fmt.Printf("Switched to %s.\n", TARGET)
 	Pause()
 }
 func Pause() {
 	fmt.Println()
-	fmt.Print("Nhan Enter de tiep tuc...")
+	fmt.Print("Press Enter to continue...")
 	bufio.NewReader(os.Stdin).ReadString('\n')
 }
 func CopyFile(src, dst string) {
