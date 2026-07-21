@@ -19,11 +19,7 @@ var (
 	CHOOSE  string
 	TARGET  string
 )
-func ClearScreen() {
-    cmd := exec.Command("cmd", "/c", "cls")
-    cmd.Stdout = os.Stdout
-    cmd.Run()
-}
+
 func main() {
 	exe, err := os.Executable()
 	if err != nil {
@@ -348,4 +344,9 @@ func CopyFile(src, dst string) {
 	}
 	defer target.Close()
 	io.Copy(target, source)
+}
+func ClearScreen() { 
+	cmd := exec.Command("cmd", "/c", "cls") 
+	cmd.Stdout = os.Stdout 
+	cmd.Run() 
 }
