@@ -198,46 +198,38 @@ func Switch() {
 var DUPLICATE string
 func CheckDuplicate() {
 	DUPLICATE = ""
-	// Dem so file trong Minecraft
 	MCCOUNT := 0
 	mcFiles, _ := filepath.Glob(filepath.Join(MC, "*.jar"))
 	for range mcFiles {
 		MCCOUNT++
 	}
-	// Duyet tung Modpack
 	dirs, _ := os.ReadDir(PACKS)
 	for _, dir := range dirs {
 		if !dir.IsDir() {
 			continue
 		}
 		packPath := filepath.Join(PACKS, dir.Name())
-		// Dem so file trong Modpack
 		PACKCOUNT := 0
 		packFiles, _ := filepath.Glob(filepath.Join(packPath, "*.jar"))
 		for range packFiles {
 			PACKCOUNT++
 		}
-		// Chi kiem tra neu so file bang nhau
 		if PACKCOUNT == MCCOUNT {
 			MATCH := true
-			// Kiem tra tung file trong Minecraft
 			for _, mcFile := range mcFiles {
 				fileName := filepath.Base(mcFile)
 				targetFile := filepath.Join(packPath, fileName)
 				targetInfo, err := os.Stat(targetFile)
-				// Khong co file cung ten
 				if err != nil {
 					MATCH = false
 					break
 				}
-				// So sanh kich thuoc
 				mcInfo, _ := os.Stat(mcFile)
 				if mcInfo.Size() != targetInfo.Size() {
 					MATCH = false
 					break
 				}
 			}
-			// Neu van MATCH = true thi da trung
 			if MATCH {
 				DUPLICATE = dir.Name()
 				return
