@@ -84,8 +84,18 @@ This project is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**.
 
 ---
 
+
+
+
 # ❤️ Credits
 
 Created and maintained by **MinhbaoGDVN**.
 
 If you like ModIn, consider giving the repository a ⭐.
+
+---
+# ☑️ Official Releases
+
+Official releases are only published by the ModIn Team.
+
+Modified or third-party builds are not considered official releases.
