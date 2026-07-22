@@ -1,6 +1,6 @@
 <div align="center">
 <p align="center">
-    <img src="icon.ico" width="128">
+    <img src="logo.png" width="128">
 </p>
 
 # ModIn
