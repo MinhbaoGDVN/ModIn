@@ -1,6 +1,6 @@
 <div align="center">
 <p align="center">
-    <img src="logo.png" width="128">
+    <img src="https://github.com/MinhbaoGDVN/ModIn/blob/main/logo.png" width="128">
 </p>
 
 # ModIn
