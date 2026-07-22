@@ -26,9 +26,7 @@ Example:
 
 Modified files:
 
-- main.go
-- switch.go
-- ui.go
+- ModIn.go
 
 Changes:
 
