@@ -18,6 +18,11 @@ type VersionConfig struct {
 	Loader           string `json:"loader"`
 }
 
+type CartItem struct {
+	ProjectID   string
+	ProjectName string
+}
+
 var (
 	ROOT      string
 	PACKS     string
@@ -29,6 +34,7 @@ var (
 	CHOOSE    string
 	TARGET    string
 	DUPLICATE string
+	Cart      []CartItem
 )
 
 func main() {
@@ -52,6 +58,7 @@ func Menu() {
 		fmt.Printf("Modpacks     : %d\n", COUNT)
 		fmt.Printf("Mods Folder  : %s\n", MC)
 		fmt.Printf("Current Mods : %d\n", MODS)
+		fmt.Printf("Mod Cart     : %d mods đang chọn\n", len(Cart))
 		fmt.Println()
 		fmt.Println("===== Current Mods =====")
 		files, _ := filepath.Glob(filepath.Join(MC, "*.jar"))
@@ -64,7 +71,8 @@ func Menu() {
 		fmt.Println("1. Create Modpack")
 		fmt.Println("2. List Modpacks")
 		fmt.Println("3. Switch Modpack")
-		fmt.Println("4. Add Mods from Modrinth (Tải mod trực tiếp)")
+		fmt.Println("4. Tìm và Thêm mod vào Giỏ hàng (Modrinth)")
+		fmt.Println("5. Xem giỏ hàng & Tải xuống tất cả")
 		fmt.Println("0. Exit")
 		fmt.Println()
 		fmt.Print("Select: ")
@@ -81,6 +89,8 @@ func Menu() {
 			Switch()
 		case "4":
 			ModrinthSearchMenu()
+		case "5":
+			ViewCartAndDownload()
 		case "0":
 			return
 		}
@@ -105,7 +115,7 @@ func Count() {
 func Header() {
 	ClearScreen()
 	fmt.Println("============================================")
-	fmt.Println("            ModsIn v2.0 - Modrinth")
+	fmt.Println("            ModsIn v3.1 - Cart System")
 	fmt.Println("        Minecraft Modpack Manager")
 	fmt.Println("============================================")
 	fmt.Println()
@@ -142,7 +152,6 @@ func Create() {
 
 	os.MkdirAll(packPath, os.ModePerm)
 
-	// Lưu file version.json
 	config := VersionConfig{
 		MinecraftVersion: mcVer,
 		Loader:           loader,
@@ -191,7 +200,6 @@ func Switch() {
 			ID++
 			Names[ID] = dir.Name()
 			
-			// Đọc version hiển thị cho đẹp
 			vFile := filepath.Join(PACKS, dir.Name(), "version.json")
 			verInfo := ""
 			if data, err := os.ReadFile(vFile); err == nil {
@@ -372,11 +380,11 @@ func Delete() {
 	Pause()
 }
 
-// === TÍNH NĂNG MỚI: TẢI MOD TỪ MODRINTH DỰA TRÊN version.json ===
+// === TÍNH NĂNG GIỎ HÀNG & MODRINTH ===
 
 func ModrinthSearchMenu() {
 	Header()
-	fmt.Println("Select Modpack to Add Mods")
+	fmt.Println("Chọn Modpack đích để xem phiên bản tương thích:")
 	fmt.Println()
 
 	ID := 0
@@ -391,13 +399,13 @@ func ModrinthSearchMenu() {
 	}
 
 	if ID == 0 {
-		fmt.Println("No modpacks found. Create one first!")
+		fmt.Println("Chưa có modpack nào. Hãy tạo trước!")
 		Pause()
 		return
 	}
 
 	fmt.Println()
-	fmt.Print("Select Modpack ID: ")
+	fmt.Print("Chọn số thứ tự Modpack: ")
 	reader := bufio.NewReader(os.Stdin)
 	input, _ := reader.ReadString('\n')
 	var index int
@@ -405,7 +413,7 @@ func ModrinthSearchMenu() {
 
 	targetPack := Names[index]
 	if targetPack == "" {
-		fmt.Println("Invalid selection.")
+		fmt.Println("Lựa chọn không hợp lệ.")
 		Pause()
 		return
 	}
@@ -415,27 +423,26 @@ func ModrinthSearchMenu() {
 	if data, err := os.ReadFile(vPath); err == nil {
 		json.Unmarshal(data, &cfg)
 	} else {
-		fmt.Println("Warning: version.json not found. Defaulting to 1.20.1 / fabric...")
 		cfg = VersionConfig{MinecraftVersion: "1.20.1", Loader: "fabric"}
 	}
 
-	SearchModrinth(targetPack, cfg)
+	SearchAndAddToCart(targetPack, cfg)
 }
 
-func SearchModrinth(packName string, cfg VersionConfig) {
+func SearchAndAddToCart(packName string, cfg VersionConfig) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		Header()
-		fmt.Printf("Modpack: %s | MC: %s | Loader: %s\n", packName, cfg.MinecraftVersion, cfg.Loader)
+		fmt.Printf("Đang chọn mod cho Modpack: [ %s ] (MC: %s | Loader: %s)\n", packName, cfg.MinecraftVersion, cfg.Loader)
+		fmt.Printf("Số lượng trong giỏ hàng hiện tại: %d\n", len(Cart))
 		fmt.Println("--------------------------------------------")
-		fmt.Print("Search Mod (or type 'exit' to back): ")
+		fmt.Print("Nhập tên mod cần tìm (hoặc gõ 'done' để quay lại): ")
 		query, _ := reader.ReadString('\n')
 		query = strings.TrimSpace(query)
-		if query == "" || query == "exit" {
+		if query == "" || query == "done" {
 			return
 		}
 
-		// Chuẩn hóa chuỗi: tự động giảm tất cả chữ xuống dạng ko viết chữ hoa và thêm dấu gạch
 		normalizedQuery := strings.ToLower(query)
 		normalizedQuery = strings.ReplaceAll(normalizedQuery, " ", "-")
 
@@ -444,7 +451,7 @@ func SearchModrinth(packName string, cfg VersionConfig) {
 
 		resp, err := http.Get(apiURL)
 		if err != nil {
-			fmt.Println("Error connecting to Modrinth API:", err)
+			fmt.Println("Lỗi kết nối Modrinth API:", err)
 			Pause()
 			continue
 		}
@@ -452,28 +459,26 @@ func SearchModrinth(packName string, cfg VersionConfig) {
 
 		var result struct {
 			Hits []struct {
-				Title       string   `json:"title"`
-				ProjectID   string   `json:"project_id"`
-				Description string   `json:"description"`
-				Versions    []string `json:"versions"`
+				Title       string `json:"title"`
+				ProjectID   string `json:"project_id"`
+				Description string `json:"description"`
 			} `json:"hits"`
 		}
-
 		json.NewDecoder(resp.Body).Decode(&result)
 
 		if len(result.Hits) == 0 {
-			fmt.Println("\nNo mods found matching your version/loader criteria.")
+			fmt.Println("\nKhông tìm thấy mod nào phù hợp phiên bản này.")
 			Pause()
 			continue
 		}
 
-		fmt.Println("\nFound Mods:")
+		fmt.Println("\nKết quả tìm kiếm:")
 		for i, hit := range result.Hits {
 			fmt.Printf("[%d] %s\n    -> %s\n", i+1, hit.Title, hit.Description)
 		}
 
 		fmt.Println()
-		fmt.Print("Enter number to download (0 to search again): ")
+		fmt.Print("Nhập số thứ tự để THÊM VÀO GIỎ HÀNG (0 để tìm lại): ")
 		choiceStr, _ := reader.ReadString('\n')
 		var choiceIdx int
 		fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choiceIdx)
@@ -482,35 +487,126 @@ func SearchModrinth(packName string, cfg VersionConfig) {
 			continue
 		}
 
-		selectedMod := result.Hits[choiceIdx-1]
-		DownloadModrinthVersion(selectedMod.ProjectID, packName, cfg)
+		selected := result.Hits[choiceIdx-1]
+		Cart = append(Cart, CartItem{ProjectID: selected.ProjectID, ProjectName: selected.Title})
+		fmt.Printf("\nĐã thêm [%s] vào giỏ hàng!\n", selected.Title)
+		Pause()
 	}
 }
 
-func DownloadModrinthVersion(projectID string, packName string, cfg VersionConfig) {
+func ViewCartAndDownload() {
+	Header()
+	fmt.Println("=== GIỎ HÀNG MOD CHỜ TẢI ===")
+	if len(Cart) == 0 {
+		fmt.Println("Giỏ hàng đang trống!")
+		Pause()
+		return
+	}
+
+	for i, item := range Cart {
+		fmt.Printf("%d. %s\n", i+1, item.ProjectName)
+	}
+
+	fmt.Println()
+	fmt.Print("Chọn Modpack muốn lưu tất cả các mod này vào: ")
+	
+	dirs, _ := os.ReadDir(PACKS)
+	ID := 0
+	Names := make(map[int]string)
+	for _, dir := range dirs {
+		if dir.IsDir() {
+			ID++
+			Names[ID] = dir.Name()
+			fmt.Printf("[%d] %s\n", ID, dir.Name())
+		}
+	}
+	
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	var index int
+	fmt.Sscanf(strings.TrimSpace(input), "%d", &index)
+	targetPack := Names[index]
+
+	if targetPack == "" {
+		fmt.Println("Modpack không tồn tại.")
+		Pause()
+		return
+	}
+
+	vPath := filepath.Join(PACKS, targetPack, "version.json")
+	var cfg VersionConfig
+	if data, err := os.ReadFile(vPath); err == nil {
+		json.Unmarshal(data, &cfg)
+	} else {
+		cfg = VersionConfig{MinecraftVersion: "1.20.1", Loader: "fabric"}
+	}
+
+	fmt.Println("\nBắt đầu tiến trình tải xuống hàng loạt...")
+
+	// Duyệt qua giỏ hàng và tự động phát hiện thêm mod thư viện bắt buộc vào hàng đợi giỏ hàng
+	downloadQueue := make([]CartItem, len(Cart))
+	copy(downloadQueue, Cart)
+	processedIDs := make(map[string]bool)
+
+	for i := 0; i < len(downloadQueue); i++ {
+		item := downloadQueue[i]
+		if processedIDs[item.ProjectID] {
+			continue
+		}
+		processedIDs[item.ProjectID] = true
+
+		fmt.Printf("\nĐang xử lý tải: %s ...\n", item.ProjectName)
+		
+		// Lấy danh sách dependency bắt buộc và tải file .jar
+		depIDs := DownloadModVersionAndGetDeps(item.ProjectID, targetPack, cfg)
+		
+		// Tự động cho các mod thư viện vào hàng đợi tải cùng luôn
+		for _, depID := range depIDs {
+			if !processedIDs[depID] {
+				downloadQueue = append(downloadQueue, CartItem{ProjectID: depID, ProjectName: "Thư viện phụ thuộc (" + depID + ")"})
+			}
+		}
+	}
+
+	fmt.Println("\nĐã tải xong toàn bộ giỏ hàng thành công!")
+	Cart = nil // Xóa sạch giỏ sau khi tải xong
+	Pause()
+}
+
+func DownloadModVersionAndGetDeps(projectID string, packName string, cfg VersionConfig) []string {
 	versionsURL := fmt.Sprintf("https://api.modrinth.com/v2/project/%s/version", projectID)
 	resp, err := http.Get(versionsURL)
 	if err != nil {
-		fmt.Println("Error fetching mod versions:", err)
-		Pause()
-		return
+		fmt.Println("Lỗi lấy thông tin version:", err)
+		return nil
 	}
 	defer resp.Body.Close()
 
 	var versions []struct {
-		Name  string `json:"name"`
-		Files []struct {
+		Name        string `json:"name"`
+		VersionType string `json:"version_type"` // release, beta, alpha
+		Files       []struct {
 			URL      string `json:"url"`
 			Filename string `json:"filename"`
 		} `json:"files"`
 		GameVersions []string `json:"game_versions"`
 		Loaders      []string `json:"loaders"`
+		Dependencies []struct {
+			ProjectID      string `json:"project_id"`
+			DependencyType string `json:"dependency_type"` // required, optional
+		} `json:"dependencies"`
 	}
 
 	json.NewDecoder(resp.Body).Decode(&versions)
 
 	var targetFileUrl, targetFileName string
+	var requiredDeps []string
+
+	// Ưu tiên 1: Quét tìm bản Release mới nhất khớp phiên bản
 	for _, v := range versions {
+		if v.VersionType != "release" {
+			continue
+		}
 		matchMC := false
 		for _, gv := range v.GameVersions {
 			if gv == cfg.MinecraftVersion {
@@ -529,47 +625,74 @@ func DownloadModrinthVersion(projectID string, packName string, cfg VersionConfi
 		if matchMC && matchLoader && len(v.Files) > 0 {
 			targetFileUrl = v.Files[0].URL
 			targetFileName = v.Files[0].Filename
+			for _, dep := range v.Dependencies {
+				if dep.DependencyType == "required" && dep.ProjectID != "" {
+					requiredDeps = append(requiredDeps, dep.ProjectID)
+				}
+			}
 			break
 		}
 	}
 
+	// Ưu tiên 2: Nếu không có bản Release nào, nới lỏng tìm bản Beta/Alpha mới nhất
 	if targetFileUrl == "" {
-		fmt.Println("\nCould not find a compatible version for your MC/Loader configuration.")
-		Pause()
-		return
+		for _, v := range versions {
+			if v.VersionType == "release" {
+				continue // Đã check ở trên
+			}
+			matchMC := false
+			for _, gv := range v.GameVersions {
+				if gv == cfg.MinecraftVersion {
+					matchMC = true
+					break
+				}
+			}
+			matchLoader := false
+			for _, l := range v.Loaders {
+				if strings.EqualFold(l, cfg.Loader) {
+					matchLoader = true
+					break
+				}
+			}
+
+			if matchMC && matchLoader && len(v.Files) > 0 {
+				targetFileUrl = v.Files[0].URL
+				targetFileName = v.Files[0].Filename
+				for _, dep := range v.Dependencies {
+					if dep.DependencyType == "required" && dep.ProjectID != "" {
+						requiredDeps = append(requiredDeps, dep.ProjectID)
+					}
+				}
+				break
+			}
+		}
 	}
 
-	fmt.Printf("\nDownloading %s...\n", targetFileName)
-	outPath := filepath.Join(PACKS, packName, targetFileName)
+	if targetFileUrl == "" {
+		fmt.Println(" -> Không tìm thấy phiên bản tương thích (Release/Beta) cho MC/Loader này.")
+		return nil
+	}
 
+	outPath := filepath.Join(PACKS, packName, targetFileName)
 	out, err := os.Create(outPath)
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		Pause()
-		return
+		fmt.Println(" -> Lỗi tạo file:", err)
+		return nil
 	}
 	defer out.Close()
 
 	fileResp, err := http.Get(targetFileUrl)
 	if err != nil {
-		fmt.Println("Error downloading file:", err)
-		Pause()
-		return
+		fmt.Println(" -> Lỗi tải file từ server:", err)
+		return nil
 	}
 	defer fileResp.Body.Close()
 
-	_, err = io.Copy(out, fileResp.Body)
-	if err != nil {
-		fmt.Println("Error saving file:", err)
-		Pause()
-		return
-	}
+	io.Copy(out, fileResp.Body)
+	fmt.Printf(" -> Đã tải xong: %s\n", targetFileName)
 
-	fmt.Println("Download completed successfully!")
-	Pause()
+	return requiredDeps
 }
-
-// === CÁC HÀM TIỆN ÍCH CŨ ===
 
 func Pause() {
 	fmt.Println()
