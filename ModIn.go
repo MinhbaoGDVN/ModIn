@@ -427,11 +427,11 @@ func ModrinthSearchMenu() {
 }
 
 // Màn hình chính Modrinth (Hiển thị mod phổ biến tải nhanh)
+// Màn hình chính Modrinth (Hiển thị mod phổ biến tải nhanh)
 func ModrinthHub(packName string, cfg VersionConfig) {
 	reader := bufio.NewReader(os.Stdin)
 
-	// Lấy top 8 mod phổ biến nhất theo phiên bản & loader
-	facets := fmt.Sprintf(`[["versions:%s"], ["categories:%s"]]`, cfg.MinecraftVersion, cfg.Loader)
+	facets := fmt.Sprintf(`[["project_type:mod"], ["versions:%s"], ["categories:%s"]]`, cfg.MinecraftVersion, cfg.Loader)
 	popularURL := fmt.Sprintf("https://api.modrinth.com/v2/search?index=downloads&limit=8&facets=%s", url.QueryEscape(facets))
 
 	var popularHits []struct {
@@ -440,18 +440,24 @@ func ModrinthHub(packName string, cfg VersionConfig) {
 		Description string `json:"description"`
 	}
 
-	resp, err := http.Get(popularURL)
+	// Tạo request và gán User-Agent theo chuẩn Modrinth yêu cầu
+	req, err := http.NewRequest("GET", popularURL, nil)
 	if err == nil {
-		defer resp.Body.Close()
-		var result struct {
-			Hits []struct {
-				Title       string `json:"title"`
-				ProjectID   string `json:"project_id"`
-				Description string `json:"description"`
-			} `json:"hits"`
+		req.Header.Set("User-Agent", "VerityApp/ModsIn/1.0 (contact@verity.gg)")
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			var result struct {
+				Hits []struct {
+					Title       string `json:"title"`
+					ProjectID   string `json:"project_id"`
+					Description string `json:"description"`
+				} `json:"hits"`
+			}
+			json.NewDecoder(resp.Body).Decode(&result)
+			popularHits = result.Hits
 		}
-		json.NewDecoder(resp.Body).Decode(&result)
-		popularHits = result.Hits
 	}
 
 	for {
@@ -495,7 +501,7 @@ func ModrinthHub(packName string, cfg VersionConfig) {
 	}
 }
 
-// Màn hình tìm kiếm chi tiết (giữ nguyên kết quả tìm kiếm để chọn nhiều mod liên tiếp)
+// Màn hình tìm kiếm chi tiết
 func SearchScreen(packName string, cfg VersionConfig) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -516,10 +522,18 @@ func SearchScreen(packName string, cfg VersionConfig) {
 		normalizedQuery := strings.ToLower(query)
 		normalizedQuery = strings.ReplaceAll(normalizedQuery, " ", "-")
 
-		facets := fmt.Sprintf(`[["versions:%s"], ["categories:%s"]]`, cfg.MinecraftVersion, cfg.Loader)
+		facets := fmt.Sprintf(`[["project_type:mod"], ["versions:%s"], ["categories:%s"]]`, cfg.MinecraftVersion, cfg.Loader)
 		apiURL := fmt.Sprintf("https://api.modrinth.com/v2/search?query=%s&facets=%s", url.QueryEscape(normalizedQuery), url.QueryEscape(facets))
 
-		resp, err := http.Get(apiURL)
+		req, err := http.NewRequest("GET", apiURL, nil)
+		if err != nil {
+			fmt.Println("Lỗi tạo request:", err)
+			Pause()
+			continue
+		}
+		req.Header.Set("User-Agent", "VerityApp/ModsIn/1.0 (contact@verity.gg)")
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			fmt.Println("Lỗi kết nối Modrinth API:", err)
 			Pause()
@@ -542,7 +556,6 @@ func SearchScreen(packName string, cfg VersionConfig) {
 			continue
 		}
 
-		// Vòng lặp giữ nguyên màn hình kết quả tìm kiếm để ông chọn liên tiếp nhiều mod
 		for {
 			Header()
 			fmt.Printf("KẾT QUẢ TÌM KIẾM CHO: '%s'\n", query)
@@ -562,7 +575,7 @@ func SearchScreen(packName string, cfg VersionConfig) {
 			fmt.Sscanf(choiceStr, "%d", &choiceIdx)
 
 			if choiceIdx == 0 {
-				break // Thoát ra để nhập từ khóa tìm kiếm mới
+				break
 			}
 			if choiceIdx > 0 && choiceIdx <= len(result.Hits) {
 				selected := result.Hits[choiceIdx-1]
