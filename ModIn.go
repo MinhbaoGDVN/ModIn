@@ -71,7 +71,7 @@ func Menu() {
 		fmt.Println("1. Create Modpack")
 		fmt.Println("2. List Modpacks")
 		fmt.Println("3. Switch Modpack")
-		fmt.Println("4. Tìm và Thêm mod vào Giỏ hàng (Modrinth)")
+		fmt.Println("4. Kho Mod / Tìm kiếm & Thêm vào Giỏ (Modrinth)")
 		fmt.Println("5. Xem giỏ hàng & Tải xuống tất cả")
 		fmt.Println("0. Exit")
 		fmt.Println()
@@ -115,7 +115,7 @@ func Count() {
 func Header() {
 	ClearScreen()
 	fmt.Println("============================================")
-	fmt.Println("            ModsIn v3.1 - Cart System")
+	fmt.Println("            ModsIn v3.2 - Cart System")
 	fmt.Println("        Minecraft Modpack Manager")
 	fmt.Println("============================================")
 	fmt.Println()
@@ -161,9 +161,6 @@ func Create() {
 
 	fmt.Println()
 	fmt.Println("Created Modpack successfully with version.json!")
-	fmt.Println(packPath)
-	fmt.Println()
-	fmt.Println("Place your .jar files into this folder or use Option 4 to download.")
 	Pause()
 }
 
@@ -380,11 +377,11 @@ func Delete() {
 	Pause()
 }
 
-// === TÍNH NĂNG GIỎ HÀNG & MODRINTH ===
+// === TÍNH NĂNG KHO MOD, PHỔ BIẾN & GIỎ HÀNG ===
 
 func ModrinthSearchMenu() {
 	Header()
-	fmt.Println("Chọn Modpack đích để xem phiên bản tương thích:")
+	fmt.Println("Chọn Modpack đích để xem kho mod:")
 	fmt.Println()
 
 	ID := 0
@@ -426,20 +423,93 @@ func ModrinthSearchMenu() {
 		cfg = VersionConfig{MinecraftVersion: "1.20.1", Loader: "fabric"}
 	}
 
-	SearchAndAddToCart(targetPack, cfg)
+	ModrinthHub(targetPack, cfg)
 }
 
-func SearchAndAddToCart(packName string, cfg VersionConfig) {
+// Màn hình chính Modrinth (Hiển thị mod phổ biến tải nhanh)
+func ModrinthHub(packName string, cfg VersionConfig) {
 	reader := bufio.NewReader(os.Stdin)
+
+	// Lấy top 8 mod phổ biến nhất theo phiên bản & loader
+	facets := fmt.Sprintf(`[["versions:%s"], ["categories:%s"]]`, cfg.MinecraftVersion, cfg.Loader)
+	popularURL := fmt.Sprintf("https://api.modrinth.com/v2/search?index=downloads&limit=8&facets=%s", url.QueryEscape(facets))
+
+	var popularHits []struct {
+		Title       string `json:"title"`
+		ProjectID   string `json:"project_id"`
+		Description string `json:"description"`
+	}
+
+	resp, err := http.Get(popularURL)
+	if err == nil {
+		defer resp.Body.Close()
+		var result struct {
+			Hits []struct {
+				Title       string `json:"title"`
+				ProjectID   string `json:"project_id"`
+				Description string `json:"description"`
+			} `json:"hits"`
+		}
+		json.NewDecoder(resp.Body).Decode(&result)
+		popularHits = result.Hits
+	}
+
 	for {
 		Header()
 		fmt.Printf("Đang chọn mod cho Modpack: [ %s ] (MC: %s | Loader: %s)\n", packName, cfg.MinecraftVersion, cfg.Loader)
-		fmt.Printf("Số lượng trong giỏ hàng hiện tại: %d\n", len(Cart))
+		fmt.Printf("Số lượng trong giỏ hàng: %d mods\n", len(Cart))
 		fmt.Println("--------------------------------------------")
-		fmt.Print("Nhập tên mod cần tìm (hoặc gõ 'done' để quay lại): ")
+		fmt.Println("🔥 MOD PHỔ BIẾN (Tải nhanh):")
+		if len(popularHits) == 0 {
+			fmt.Println("(Không tải được danh sách phổ biến hoặc không có kết quả phù hợp)")
+		} else {
+			for i, hit := range popularHits {
+				fmt.Printf("[%d] %s\n    -> %s\n", i+1, hit.Title, hit.Description)
+			}
+		}
+		fmt.Println("--------------------------------------------")
+		fmt.Println("[s] Tìm kiếm mod khác theo tên")
+		fmt.Println("[0] Quay lại Menu chính")
+		fmt.Println()
+		fmt.Print("Chọn số để thêm mod phổ biến, hoặc nhập 's' để tìm kiếm: ")
+
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		if input == "0" {
+			return
+		}
+		if strings.EqualFold(input, "s") {
+			SearchScreen(packName, cfg)
+			continue
+		}
+
+		var choiceIdx int
+		_, err := fmt.Sscanf(input, "%d", &choiceIdx)
+		if err == nil && choiceIdx > 0 && choiceIdx <= len(popularHits) {
+			selected := popularHits[choiceIdx-1]
+			Cart = append(Cart, CartItem{ProjectID: selected.ProjectID, ProjectName: selected.Title})
+			fmt.Printf("\nĐã thêm [%s] vào giỏ hàng!\n", selected.Title)
+			Pause()
+		}
+	}
+}
+
+// Màn hình tìm kiếm chi tiết (giữ nguyên kết quả tìm kiếm để chọn nhiều mod liên tiếp)
+func SearchScreen(packName string, cfg VersionConfig) {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		Header()
+		fmt.Printf("TÌM KIẾM MOD cho [ %s ] (MC: %s | Loader: %s)\n", packName, cfg.MinecraftVersion, cfg.Loader)
+		fmt.Printf("Giỏ hàng: %d mods\n", len(Cart))
+		fmt.Println("--------------------------------------------")
+		fmt.Print("Nhập tên mod cần tìm (hoặc gõ 'back' để về lại danh sách phổ biến): ")
 		query, _ := reader.ReadString('\n')
 		query = strings.TrimSpace(query)
-		if query == "" || query == "done" {
+		if query == "" {
+			continue
+		}
+		if strings.EqualFold(query, "back") {
 			return
 		}
 
@@ -455,7 +525,6 @@ func SearchAndAddToCart(packName string, cfg VersionConfig) {
 			Pause()
 			continue
 		}
-		defer resp.Body.Close()
 
 		var result struct {
 			Hits []struct {
@@ -465,32 +534,43 @@ func SearchAndAddToCart(packName string, cfg VersionConfig) {
 			} `json:"hits"`
 		}
 		json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
 
 		if len(result.Hits) == 0 {
-			fmt.Println("\nKhông tìm thấy mod nào phù hợp phiên bản này.")
+			fmt.Println("\nKhông tìm thấy mod nào phù hợp.")
 			Pause()
 			continue
 		}
 
-		fmt.Println("\nKết quả tìm kiếm:")
-		for i, hit := range result.Hits {
-			fmt.Printf("[%d] %s\n    -> %s\n", i+1, hit.Title, hit.Description)
+		// Vòng lặp giữ nguyên màn hình kết quả tìm kiếm để ông chọn liên tiếp nhiều mod
+		for {
+			Header()
+			fmt.Printf("KẾT QUẢ TÌM KIẾM CHO: '%s'\n", query)
+			fmt.Printf("Giỏ hàng: %d mods\n", len(Cart))
+			fmt.Println("--------------------------------------------")
+			for i, hit := range result.Hits {
+				fmt.Printf("[%d] %s\n    -> %s\n", i+1, hit.Title, hit.Description)
+			}
+			fmt.Println("--------------------------------------------")
+			fmt.Println("[0] Tìm từ khóa khác")
+			fmt.Println()
+			fmt.Print("Chọn số để THÊM VÀO GIỎ HÀNG (0 để đổi từ khóa): ")
+
+			choiceStr, _ := reader.ReadString('\n')
+			choiceStr = strings.TrimSpace(choiceStr)
+			var choiceIdx int
+			fmt.Sscanf(choiceStr, "%d", &choiceIdx)
+
+			if choiceIdx == 0 {
+				break // Thoát ra để nhập từ khóa tìm kiếm mới
+			}
+			if choiceIdx > 0 && choiceIdx <= len(result.Hits) {
+				selected := result.Hits[choiceIdx-1]
+				Cart = append(Cart, CartItem{ProjectID: selected.ProjectID, ProjectName: selected.Title})
+				fmt.Printf("\nĐã thêm [%s] vào giỏ hàng!\n", selected.Title)
+				Pause()
+			}
 		}
-
-		fmt.Println()
-		fmt.Print("Nhập số thứ tự để THÊM VÀO GIỎ HÀNG (0 để tìm lại): ")
-		choiceStr, _ := reader.ReadString('\n')
-		var choiceIdx int
-		fmt.Sscanf(strings.TrimSpace(choiceStr), "%d", &choiceIdx)
-
-		if choiceIdx <= 0 || choiceIdx > len(result.Hits) {
-			continue
-		}
-
-		selected := result.Hits[choiceIdx-1]
-		Cart = append(Cart, CartItem{ProjectID: selected.ProjectID, ProjectName: selected.Title})
-		fmt.Printf("\nĐã thêm [%s] vào giỏ hàng!\n", selected.Title)
-		Pause()
 	}
 }
 
@@ -543,7 +623,6 @@ func ViewCartAndDownload() {
 
 	fmt.Println("\nBắt đầu tiến trình tải xuống hàng loạt...")
 
-	// Duyệt qua giỏ hàng và tự động phát hiện thêm mod thư viện bắt buộc vào hàng đợi giỏ hàng
 	downloadQueue := make([]CartItem, len(Cart))
 	copy(downloadQueue, Cart)
 	processedIDs := make(map[string]bool)
@@ -557,10 +636,8 @@ func ViewCartAndDownload() {
 
 		fmt.Printf("\nĐang xử lý tải: %s ...\n", item.ProjectName)
 		
-		// Lấy danh sách dependency bắt buộc và tải file .jar
 		depIDs := DownloadModVersionAndGetDeps(item.ProjectID, targetPack, cfg)
 		
-		// Tự động cho các mod thư viện vào hàng đợi tải cùng luôn
 		for _, depID := range depIDs {
 			if !processedIDs[depID] {
 				downloadQueue = append(downloadQueue, CartItem{ProjectID: depID, ProjectName: "Thư viện phụ thuộc (" + depID + ")"})
@@ -569,7 +646,7 @@ func ViewCartAndDownload() {
 	}
 
 	fmt.Println("\nĐã tải xong toàn bộ giỏ hàng thành công!")
-	Cart = nil // Xóa sạch giỏ sau khi tải xong
+	Cart = nil
 	Pause()
 }
 
@@ -584,7 +661,7 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 
 	var versions []struct {
 		Name        string `json:"name"`
-		VersionType string `json:"version_type"` // release, beta, alpha
+		VersionType string `json:"version_type"`
 		Files       []struct {
 			URL      string `json:"url"`
 			Filename string `json:"filename"`
@@ -593,7 +670,7 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 		Loaders      []string `json:"loaders"`
 		Dependencies []struct {
 			ProjectID      string `json:"project_id"`
-			DependencyType string `json:"dependency_type"` // required, optional
+			DependencyType string `json:"dependency_type"`
 		} `json:"dependencies"`
 	}
 
@@ -602,7 +679,7 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 	var targetFileUrl, targetFileName string
 	var requiredDeps []string
 
-	// Ưu tiên 1: Quét tìm bản Release mới nhất khớp phiên bản
+	// Ưu tiên 1: Bản Release mới nhất
 	for _, v := range versions {
 		if v.VersionType != "release" {
 			continue
@@ -634,11 +711,11 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 		}
 	}
 
-	// Ưu tiên 2: Nếu không có bản Release nào, nới lỏng tìm bản Beta/Alpha mới nhất
+	// Ưu tiên 2: Nếu không có release, tìm bản Beta/Alpha mới nhất
 	if targetFileUrl == "" {
 		for _, v := range versions {
 			if v.VersionType == "release" {
-				continue // Đã check ở trên
+				continue
 			}
 			matchMC := false
 			for _, gv := range v.GameVersions {
@@ -669,7 +746,7 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 	}
 
 	if targetFileUrl == "" {
-		fmt.Println(" -> Không tìm thấy phiên bản tương thích (Release/Beta) cho MC/Loader này.")
+		fmt.Println(" -> Không tìm thấy phiên bản tương thích cho MC/Loader này.")
 		return nil
 	}
 
