@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type VersionConfig struct {
@@ -37,6 +38,12 @@ var (
 	Cart      []CartItem
 )
 
+// Developer Console Logger
+func DevLog(format string, a ...interface{}) {
+	timestamp := time.Now().Format("15:04:05")
+	fmt.Printf("[%s] [DEV CONSOLE] "+format+"\n", append([]interface{}{timestamp}, a...)...)
+}
+
 func main() {
 	exe, err := os.Executable()
 	if err != nil {
@@ -58,24 +65,24 @@ func Menu() {
 		fmt.Printf("Modpacks     : %d\n", COUNT)
 		fmt.Printf("Mods Folder  : %s\n", MC)
 		fmt.Printf("Current Mods : %d\n", MODS)
-		fmt.Printf("Mod Cart     : %d mods đang chọn\n", len(Cart))
+		fmt.Printf("Mod Cart     : %d mods selected\n", len(Cart))
 		fmt.Println()
-		fmt.Println("===== Current Mods =====")
+		fmt.Println("===== Current Mods in .minecraft =====")
 		files, _ := filepath.Glob(filepath.Join(MC, "*.jar"))
 		for _, file := range files {
-			fmt.Println(filepath.Base(file))
+			fmt.Println("- " + filepath.Base(file))
 		}
 		fmt.Println()
-		fmt.Println("==========================")
+		fmt.Println("======================================")
 		fmt.Println()
 		fmt.Println("1. Create Modpack")
 		fmt.Println("2. List Modpacks")
 		fmt.Println("3. Switch Modpack")
-		fmt.Println("4. Kho Mod / Tìm kiếm & Thêm vào Giỏ (Modrinth)")
-		fmt.Println("5. Xem giỏ hàng & Tải xuống tất cả")
+		fmt.Println("4. Mod Store / Search & Add to Cart (Modrinth)")
+		fmt.Println("5. View Cart & Download All")
 		fmt.Println("0. Exit")
 		fmt.Println()
-		fmt.Print("Select: ")
+		fmt.Print("Select option: ")
 		reader := bufio.NewReader(os.Stdin)
 		CHOICE, _ = reader.ReadString('\n')
 		CHOICE = strings.TrimSpace(CHOICE)
@@ -115,7 +122,7 @@ func Count() {
 func Header() {
 	ClearScreen()
 	fmt.Println("============================================")
-	fmt.Println("            ModsIn v3.2 - Cart System")
+	fmt.Println("          ModsIn v3.3 - English Edition")
 	fmt.Println("        Minecraft Modpack Manager")
 	fmt.Println("============================================")
 	fmt.Println()
@@ -123,7 +130,7 @@ func Header() {
 
 func Create() {
 	Header()
-	fmt.Println("Create Modpack")
+	fmt.Println("=== Create Modpack ===")
 	fmt.Println()
 	reader := bufio.NewReader(os.Stdin)
 
@@ -136,8 +143,7 @@ func Create() {
 
 	packPath := filepath.Join(PACKS, NAME)
 	if _, err := os.Stat(packPath); err == nil {
-		fmt.Println()
-		fmt.Println("Modpack already exists.")
+		fmt.Println("\nModpack already exists.")
 		Pause()
 		return
 	}
@@ -159,14 +165,14 @@ func Create() {
 	fileData, _ := json.MarshalIndent(config, "", "  ")
 	os.WriteFile(filepath.Join(packPath, "version.json"), fileData, 0644)
 
-	fmt.Println()
-	fmt.Println("Created Modpack successfully with version.json!")
+	DevLog("Created modpack folder: %s", packPath)
+	fmt.Println("\nModpack created successfully!")
 	Pause()
 }
 
 func List() {
 	Header()
-	fmt.Println("List Modpacks")
+	fmt.Println("=== List Modpacks ===")
 	fmt.Println()
 	dirs, _ := os.ReadDir(PACKS)
 	for _, dir := range dirs {
@@ -187,7 +193,7 @@ func List() {
 
 func Switch() {
 	Header()
-	fmt.Println("Switch Modpack")
+	fmt.Println("=== Switch Modpack ===")
 	fmt.Println()
 	ID := 0
 	Names := make(map[int]string)
@@ -208,7 +214,7 @@ func Switch() {
 		}
 	}
 	fmt.Println()
-	fmt.Print("Select: ")
+	fmt.Print("Select Modpack: ")
 	reader := bufio.NewReader(os.Stdin)
 	CHOOSE, _ = reader.ReadString('\n')
 	CHOOSE = strings.TrimSpace(CHOOSE)
@@ -216,8 +222,7 @@ func Switch() {
 	fmt.Sscanf(CHOOSE, "%d", &index)
 	TARGET = Names[index]
 	if TARGET == "" {
-		fmt.Println()
-		fmt.Println("Invalid selection.")
+		fmt.Println("\nInvalid selection.")
 		Pause()
 		return
 	}
@@ -231,11 +236,9 @@ func Switch() {
 		Duplicate()
 		return
 	}
-	fmt.Println()
-	fmt.Println("Current Mods")
-	fmt.Println()
+	fmt.Println("\nCurrent Mods in directory:")
 	for _, file := range files {
-		fmt.Println(filepath.Base(file))
+		fmt.Println("- " + filepath.Base(file))
 	}
 	fmt.Println()
 	fmt.Println("[Y] Yes (Save current mods to a new modpack)")
@@ -302,15 +305,14 @@ func CopyOnly() {
 		dst := filepath.Join(MC, filepath.Base(file))
 		CopyFile(file, dst)
 	}
-	fmt.Println()
-	fmt.Printf("Switched to %s.\n", TARGET)
+	DevLog("Copied mods for modpack: %s", TARGET)
+	fmt.Printf("\nSwitched to %s successfully.\n", TARGET)
 	Pause()
 }
 
 func Duplicate() {
-	fmt.Println()
-	fmt.Printf("Current mods matched Modpack '%s'. Replacing...\n", DUPLICATE)
-	fmt.Println()
+	DevLog("Matching duplicate detected: %s", DUPLICATE)
+	fmt.Printf("\nCurrent mods match Modpack '%s'. Switching...\n", DUPLICATE)
 	files, _ := filepath.Glob(filepath.Join(MC, "*.jar"))
 	for _, file := range files {
 		os.Remove(file)
@@ -333,8 +335,7 @@ func Save() {
 		return
 	}
 	if _, err := os.Stat(filepath.Join(PACKS, NEWNAME)); err == nil {
-		fmt.Println()
-		fmt.Println("Modpack already exists.")
+		fmt.Println("\nModpack already exists.")
 		Pause()
 		return
 	}
@@ -349,9 +350,7 @@ func Save() {
 		dst := filepath.Join(MC, filepath.Base(file))
 		CopyFile(file, dst)
 	}
-	fmt.Println()
-	fmt.Println("Modpack saved.")
-	fmt.Printf("Switched to %s.\n", TARGET)
+	fmt.Println("\nModpack saved and switched successfully.")
 	Pause()
 }
 
@@ -372,16 +371,15 @@ func Delete() {
 		dst := filepath.Join(MC, filepath.Base(file))
 		CopyFile(file, dst)
 	}
-	fmt.Println()
-	fmt.Printf("Switched to %s.\n", TARGET)
+	fmt.Printf("\nSwitched to %s successfully.\n", TARGET)
 	Pause()
 }
 
-// === TÍNH NĂNG KHO MOD, PHỔ BIẾN & GIỎ HÀNG ===
+// === MODRINTH HUB & CART ===
 
 func ModrinthSearchMenu() {
 	Header()
-	fmt.Println("Chọn Modpack đích để xem kho mod:")
+	fmt.Println("=== Select Target Modpack ===")
 	fmt.Println()
 
 	ID := 0
@@ -396,13 +394,13 @@ func ModrinthSearchMenu() {
 	}
 
 	if ID == 0 {
-		fmt.Println("Chưa có modpack nào. Hãy tạo trước!")
+		fmt.Println("No modpacks found. Create one first!")
 		Pause()
 		return
 	}
 
 	fmt.Println()
-	fmt.Print("Chọn số thứ tự Modpack: ")
+	fmt.Print("Select Modpack number: ")
 	reader := bufio.NewReader(os.Stdin)
 	input, _ := reader.ReadString('\n')
 	var index int
@@ -410,7 +408,7 @@ func ModrinthSearchMenu() {
 
 	targetPack := Names[index]
 	if targetPack == "" {
-		fmt.Println("Lựa chọn không hợp lệ.")
+		fmt.Println("Invalid selection.")
 		Pause()
 		return
 	}
@@ -426,13 +424,13 @@ func ModrinthSearchMenu() {
 	ModrinthHub(targetPack, cfg)
 }
 
-// Màn hình chính Modrinth (Hiển thị mod phổ biến tải nhanh)
-// Màn hình chính Modrinth (Hiển thị mod phổ biến tải nhanh)
 func ModrinthHub(packName string, cfg VersionConfig) {
 	reader := bufio.NewReader(os.Stdin)
 
 	facets := fmt.Sprintf(`[["project_type:mod"], ["versions:%s"], ["categories:%s"]]`, cfg.MinecraftVersion, cfg.Loader)
 	popularURL := fmt.Sprintf("https://api.modrinth.com/v2/search?index=downloads&limit=8&facets=%s", url.QueryEscape(facets))
+
+	DevLog("Fetching popular mods from Modrinth (MC: %s, Loader: %s)", cfg.MinecraftVersion, cfg.Loader)
 
 	var popularHits []struct {
 		Title       string `json:"title"`
@@ -440,11 +438,10 @@ func ModrinthHub(packName string, cfg VersionConfig) {
 		Description string `json:"description"`
 	}
 
-	// Tạo request và gán User-Agent theo chuẩn Modrinth yêu cầu
 	req, err := http.NewRequest("GET", popularURL, nil)
 	if err == nil {
-		req.Header.Set("User-Agent", "VerityApp/ModsIn/1.0 (contact@verity.gg)")
-		client := &http.Client{}
+		req.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
+		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Do(req)
 		if err == nil {
 			defer resp.Body.Close()
@@ -457,27 +454,30 @@ func ModrinthHub(packName string, cfg VersionConfig) {
 			}
 			json.NewDecoder(resp.Body).Decode(&result)
 			popularHits = result.Hits
+			DevLog("Successfully fetched %d popular mods", len(popularHits))
+		} else {
+			DevLog("HTTP Error fetching popular mods: %v", err)
 		}
 	}
 
 	for {
 		Header()
-		fmt.Printf("Đang chọn mod cho Modpack: [ %s ] (MC: %s | Loader: %s)\n", packName, cfg.MinecraftVersion, cfg.Loader)
-		fmt.Printf("Số lượng trong giỏ hàng: %d mods\n", len(Cart))
+		fmt.Printf("Target Modpack: [ %s ] (MC: %s | Loader: %s)\n", packName, cfg.MinecraftVersion, cfg.Loader)
+		fmt.Printf("Cart Items: %d mods\n", len(Cart))
 		fmt.Println("--------------------------------------------")
-		fmt.Println("🔥 MOD PHỔ BIẾN (Tải nhanh):")
+		fmt.Println("🔥 POPULAR MODS (Quick Add):")
 		if len(popularHits) == 0 {
-			fmt.Println("(Không tải được danh sách phổ biến hoặc không có kết quả phù hợp)")
+			fmt.Println("(Could not load popular mods or none found)")
 		} else {
 			for i, hit := range popularHits {
 				fmt.Printf("[%d] %s\n    -> %s\n", i+1, hit.Title, hit.Description)
 			}
 		}
 		fmt.Println("--------------------------------------------")
-		fmt.Println("[s] Tìm kiếm mod khác theo tên")
-		fmt.Println("[0] Quay lại Menu chính")
+		fmt.Println("[s] Search mods by name")
+		fmt.Println("[0] Back to Main Menu")
 		fmt.Println()
-		fmt.Print("Chọn số để thêm mod phổ biến, hoặc nhập 's' để tìm kiếm: ")
+		fmt.Print("Enter option number or 's': ")
 
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
@@ -495,21 +495,21 @@ func ModrinthHub(packName string, cfg VersionConfig) {
 		if err == nil && choiceIdx > 0 && choiceIdx <= len(popularHits) {
 			selected := popularHits[choiceIdx-1]
 			Cart = append(Cart, CartItem{ProjectID: selected.ProjectID, ProjectName: selected.Title})
-			fmt.Printf("\nĐã thêm [%s] vào giỏ hàng!\n", selected.Title)
+			DevLog("Added to cart: %s (%s)", selected.Title, selected.ProjectID)
+			fmt.Printf("\nAdded [%s] to cart!\n", selected.Title)
 			Pause()
 		}
 	}
 }
 
-// Màn hình tìm kiếm chi tiết
 func SearchScreen(packName string, cfg VersionConfig) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		Header()
-		fmt.Printf("TÌM KIẾM MOD cho [ %s ] (MC: %s | Loader: %s)\n", packName, cfg.MinecraftVersion, cfg.Loader)
-		fmt.Printf("Giỏ hàng: %d mods\n", len(Cart))
+		fmt.Printf("SEARCH MODS for [ %s ] (MC: %s | Loader: %s)\n", packName, cfg.MinecraftVersion, cfg.Loader)
+		fmt.Printf("Cart Items: %d mods\n", len(Cart))
 		fmt.Println("--------------------------------------------")
-		fmt.Print("Nhập tên mod cần tìm (hoặc gõ 'back' để về lại danh sách phổ biến): ")
+		fmt.Print("Enter mod name to search (or type 'back' to return): ")
 		query, _ := reader.ReadString('\n')
 		query = strings.TrimSpace(query)
 		if query == "" {
@@ -525,17 +525,20 @@ func SearchScreen(packName string, cfg VersionConfig) {
 		facets := fmt.Sprintf(`[["project_type:mod"], ["versions:%s"], ["categories:%s"]]`, cfg.MinecraftVersion, cfg.Loader)
 		apiURL := fmt.Sprintf("https://api.modrinth.com/v2/search?query=%s&facets=%s", url.QueryEscape(normalizedQuery), url.QueryEscape(facets))
 
+		DevLog("Searching Modrinth query: %s", normalizedQuery)
+
 		req, err := http.NewRequest("GET", apiURL, nil)
 		if err != nil {
-			fmt.Println("Lỗi tạo request:", err)
+			DevLog("Error creating search request: %v", err)
 			Pause()
 			continue
 		}
-		req.Header.Set("User-Agent", "VerityApp/ModsIn/1.0 (contact@verity.gg)")
-		client := &http.Client{}
+		req.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
+		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
-			fmt.Println("Lỗi kết nối Modrinth API:", err)
+			DevLog("Connection error: %v", err)
+			fmt.Println("Connection error to Modrinth API.")
 			Pause()
 			continue
 		}
@@ -551,23 +554,23 @@ func SearchScreen(packName string, cfg VersionConfig) {
 		resp.Body.Close()
 
 		if len(result.Hits) == 0 {
-			fmt.Println("\nKhông tìm thấy mod nào phù hợp.")
+			fmt.Println("\nNo mods found matching your query.")
 			Pause()
 			continue
 		}
 
 		for {
 			Header()
-			fmt.Printf("KẾT QUẢ TÌM KIẾM CHO: '%s'\n", query)
-			fmt.Printf("Giỏ hàng: %d mods\n", len(Cart))
+			fmt.Printf("SEARCH RESULTS FOR: '%s'\n", query)
+			fmt.Printf("Cart Items: %d mods\n", len(Cart))
 			fmt.Println("--------------------------------------------")
 			for i, hit := range result.Hits {
 				fmt.Printf("[%d] %s\n    -> %s\n", i+1, hit.Title, hit.Description)
 			}
 			fmt.Println("--------------------------------------------")
-			fmt.Println("[0] Tìm từ khóa khác")
+			fmt.Println("[0] Search another keyword")
 			fmt.Println()
-			fmt.Print("Chọn số để THÊM VÀO GIỎ HÀNG (0 để đổi từ khóa): ")
+			fmt.Print("Select number to ADD TO CART (0 to change keyword): ")
 
 			choiceStr, _ := reader.ReadString('\n')
 			choiceStr = strings.TrimSpace(choiceStr)
@@ -580,7 +583,8 @@ func SearchScreen(packName string, cfg VersionConfig) {
 			if choiceIdx > 0 && choiceIdx <= len(result.Hits) {
 				selected := result.Hits[choiceIdx-1]
 				Cart = append(Cart, CartItem{ProjectID: selected.ProjectID, ProjectName: selected.Title})
-				fmt.Printf("\nĐã thêm [%s] vào giỏ hàng!\n", selected.Title)
+				DevLog("Added to cart: %s (%s)", selected.Title, selected.ProjectID)
+				fmt.Printf("\nAdded [%s] to cart!\n", selected.Title)
 				Pause()
 			}
 		}
@@ -589,9 +593,9 @@ func SearchScreen(packName string, cfg VersionConfig) {
 
 func ViewCartAndDownload() {
 	Header()
-	fmt.Println("=== GIỎ HÀNG MOD CHỜ TẢI ===")
+	fmt.Println("=== MOD CART & DOWNLOADER ===")
 	if len(Cart) == 0 {
-		fmt.Println("Giỏ hàng đang trống!")
+		fmt.Println("Cart is empty!")
 		Pause()
 		return
 	}
@@ -601,7 +605,7 @@ func ViewCartAndDownload() {
 	}
 
 	fmt.Println()
-	fmt.Print("Chọn Modpack muốn lưu tất cả các mod này vào: ")
+	fmt.Print("Select target Modpack to download all mods into: ")
 	
 	dirs, _ := os.ReadDir(PACKS)
 	ID := 0
@@ -621,7 +625,7 @@ func ViewCartAndDownload() {
 	targetPack := Names[index]
 
 	if targetPack == "" {
-		fmt.Println("Modpack không tồn tại.")
+		fmt.Println("Modpack does not exist.")
 		Pause()
 		return
 	}
@@ -634,7 +638,8 @@ func ViewCartAndDownload() {
 		cfg = VersionConfig{MinecraftVersion: "1.20.1", Loader: "fabric"}
 	}
 
-	fmt.Println("\nBắt đầu tiến trình tải xuống hàng loạt...")
+	DevLog("Starting batch download for Modpack: %s", targetPack)
+	fmt.Println("\nStarting batch download process...")
 
 	downloadQueue := make([]CartItem, len(Cart))
 	copy(downloadQueue, Cart)
@@ -647,27 +652,41 @@ func ViewCartAndDownload() {
 		}
 		processedIDs[item.ProjectID] = true
 
-		fmt.Printf("\nĐang xử lý tải: %s ...\n", item.ProjectName)
+		DevLog("Processing download queue item: %s (%s)", item.ProjectName, item.ProjectID)
+		fmt.Printf("\nDownloading: %s ...\n", item.ProjectName)
 		
 		depIDs := DownloadModVersionAndGetDeps(item.ProjectID, targetPack, cfg)
 		
 		for _, depID := range depIDs {
 			if !processedIDs[depID] {
-				downloadQueue = append(downloadQueue, CartItem{ProjectID: depID, ProjectName: "Thư viện phụ thuộc (" + depID + ")"})
+				DevLog("Discovered required dependency: %s", depID)
+				downloadQueue = append(downloadQueue, CartItem{ProjectID: depID, ProjectName: "Dependency (" + depID + ")"})
 			}
 		}
 	}
 
-	fmt.Println("\nĐã tải xong toàn bộ giỏ hàng thành công!")
+	DevLog("Batch download completed successfully.")
+	fmt.Println("\nAll mods downloaded successfully!")
 	Cart = nil
 	Pause()
 }
 
 func DownloadModVersionAndGetDeps(projectID string, packName string, cfg VersionConfig) []string {
 	versionsURL := fmt.Sprintf("https://api.modrinth.com/v2/project/%s/version", projectID)
-	resp, err := http.Get(versionsURL)
+	DevLog("Fetching versions from: %s", versionsURL)
+
+	req, err := http.NewRequest("GET", versionsURL, nil)
 	if err != nil {
-		fmt.Println("Lỗi lấy thông tin version:", err)
+		DevLog("Error creating version request: %v", err)
+		return nil
+	}
+	req.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
+	
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		DevLog("Failed to fetch versions: %v", err)
+		fmt.Println(" -> Connection error while fetching versions.")
 		return nil
 	}
 	defer resp.Body.Close()
@@ -692,7 +711,7 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 	var targetFileUrl, targetFileName string
 	var requiredDeps []string
 
-	// Ưu tiên 1: Bản Release mới nhất
+	// Priority 1: Latest Release
 	for _, v := range versions {
 		if v.VersionType != "release" {
 			continue
@@ -724,7 +743,7 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 		}
 	}
 
-	// Ưu tiên 2: Nếu không có release, tìm bản Beta/Alpha mới nhất
+	// Priority 2: Latest Beta/Alpha if no release found
 	if targetFileUrl == "" {
 		for _, v := range versions {
 			if v.VersionType == "release" {
@@ -759,27 +778,46 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 	}
 
 	if targetFileUrl == "" {
-		fmt.Println(" -> Không tìm thấy phiên bản tương thích cho MC/Loader này.")
+		DevLog("No compatible version found for project ID: %s", projectID)
+		fmt.Println(" -> No compatible version found for this MC version/loader.")
 		return nil
 	}
+
+	DevLog("Downloading file: %s from URL: %s", targetFileName, targetFileUrl)
 
 	outPath := filepath.Join(PACKS, packName, targetFileName)
 	out, err := os.Create(outPath)
 	if err != nil {
-		fmt.Println(" -> Lỗi tạo file:", err)
+		DevLog("Failed to create file on disk: %v", err)
+		fmt.Println(" -> Error creating file:", err)
 		return nil
 	}
 	defer out.Close()
 
-	fileResp, err := http.Get(targetFileUrl)
+	fileReq, err := http.NewRequest("GET", targetFileUrl, nil)
 	if err != nil {
-		fmt.Println(" -> Lỗi tải file từ server:", err)
+		DevLog("Failed to create file download request: %v", err)
+		return nil
+	}
+	fileReq.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
+
+	fileResp, err := client.Do(fileReq)
+	if err != nil {
+		DevLog("Failed to download file from server: %v", err)
+		fmt.Println(" -> Error downloading file from server:", err)
 		return nil
 	}
 	defer fileResp.Body.Close()
 
-	io.Copy(out, fileResp.Body)
-	fmt.Printf(" -> Đã tải xong: %s\n", targetFileName)
+	_, err = io.Copy(out, fileResp.Body)
+	if err != nil {
+		DevLog("Error saving file stream: %v", err)
+		fmt.Println(" -> Error saving file stream:", err)
+		return nil
+	}
+
+	DevLog("Successfully downloaded: %s", targetFileName)
+	fmt.Printf(" -> Downloaded successfully: %s\n", targetFileName)
 
 	return requiredDeps
 }
