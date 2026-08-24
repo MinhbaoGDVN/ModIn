@@ -25,23 +25,31 @@ type CartItem struct {
 }
 
 var (
-	ROOT      string
-	PACKS     string
-	MC        string
-	COUNT     int
-	MODS      int
-	CHOICE    string
-	NAME      string
-	CHOOSE    string
-	TARGET    string
-	DUPLICATE string
-	Cart      []CartItem
+	ROOT       string
+	PACKS      string
+	MC         string
+	LOGFILE    string
+	COUNT      int
+	MODS       int
+	CHOICE     string
+	NAME       string
+	CHOOSE     string
+	TARGET     string
+	DUPLICATE  string
+	Cart       []CartItem
 )
 
-// Developer Console Logger
+// Developer Console Logger (Ghi vào file log và in ra nếu cần)
 func DevLog(format string, a ...interface{}) {
 	timestamp := time.Now().Format("15:04:05")
-	fmt.Printf("[%s] [DEV CONSOLE] "+format+"\n", append([]interface{}{timestamp}, a...)...)
+	msg := fmt.Sprintf("[%s] [DEV CONSOLE] "+format+"\n", append([]interface{}{timestamp}, a...)...)
+	
+	// Ghi log vào file để cửa sổ console riêng đọc được real-time
+	f, err := os.OpenFile(LOGFILE, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err == nil {
+		defer f.Close()
+		f.WriteString(msg)
+	}
 }
 
 func main() {
@@ -51,6 +59,11 @@ func main() {
 	}
 	ROOT = filepath.Dir(exe)
 	PACKS = filepath.Join(ROOT, "Modpacks")
+	LOGFILE = filepath.Join(ROOT, "dev_console.log")
+	
+	// Reset file log khi khởi động mới
+	os.WriteFile(LOGFILE, []byte("=== MODSIN DEVELOPER CONSOLE STARTED ===\n"), 0644)
+
 	appdata := os.Getenv("APPDATA")
 	MC = filepath.Join(appdata, ".minecraft", "mods")
 	os.MkdirAll(PACKS, os.ModePerm)
@@ -82,10 +95,18 @@ func Menu() {
 		fmt.Println("5. View Cart & Download All")
 		fmt.Println("0. Exit")
 		fmt.Println()
+		fmt.Println("[Type 'SC1' to open separate Developer Console]")
+		fmt.Println()
 		fmt.Print("Select option: ")
 		reader := bufio.NewReader(os.Stdin)
 		CHOICE, _ = reader.ReadString('\n')
 		CHOICE = strings.TrimSpace(CHOICE)
+
+		// Lệnh mở cửa sổ Developer Console riêng khi nhập SC1 (tương đương Shift+C+1)
+		if strings.EqualFold(CHOICE, "SC1") {
+			OpenDevConsoleWindow()
+			continue
+		}
 
 		switch CHOICE {
 		case "1":
@@ -102,6 +123,14 @@ func Menu() {
 			return
 		}
 	}
+}
+
+// Hàm bật một cửa sổ CMD/PowerShell riêng để theo dõi log trực tiếp (Tail log file)
+func OpenDevConsoleWindow() {
+	DevLog("Opening separate Developer Console window...")
+	// Lệnh mở cửa sổ cmd mới chạy lệnh theo dõi file log real-time bằng PowerShell Get-Content -Wait
+	cmd := exec.Command("cmd", "/c", "start", "cmd", "/k", fmt.Sprintf("title ModsIn Developer Console & powershell -Command \"Get-Content -Path '%s' -Wait\"", LOGFILE))
+	cmd.Start()
 }
 
 func Count() {
@@ -122,7 +151,7 @@ func Count() {
 func Header() {
 	ClearScreen()
 	fmt.Println("============================================")
-	fmt.Println("          ModsIn v3.3 - English Edition")
+	fmt.Println("          ModsIn v3.4 - Dev Edition")
 	fmt.Println("        Minecraft Modpack Manager")
 	fmt.Println("============================================")
 	fmt.Println()
@@ -711,7 +740,6 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 	var targetFileUrl, targetFileName string
 	var requiredDeps []string
 
-	// Priority 1: Latest Release
 	for _, v := range versions {
 		if v.VersionType != "release" {
 			continue
@@ -743,7 +771,6 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 		}
 	}
 
-	// Priority 2: Latest Beta/Alpha if no release found
 	if targetFileUrl == "" {
 		for _, v := range versions {
 			if v.VersionType == "release" {
