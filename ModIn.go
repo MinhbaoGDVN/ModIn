@@ -127,9 +127,20 @@ func Menu() {
 
 // Hàm bật một cửa sổ CMD/PowerShell riêng để theo dõi log trực tiếp (Tail log file)
 func OpenDevConsoleWindow() {
+	// Đảm bảo file log tồn tại trước khi mở cửa sổ mới
+	if _, err := os.Stat(LOGFILE); os.IsNotExist(err) {
+		os.WriteFile(LOGFILE, []byte("=== MODSIN DEVELOPER CONSOLE STARTED ===\n"), 0644)
+	}
+
 	DevLog("Opening separate Developer Console window...")
-	// Lệnh mở cửa sổ cmd mới chạy lệnh theo dõi file log real-time bằng PowerShell Get-Content -Wait
-	cmd := exec.Command("cmd", "/c", "start", "cmd", "/k", fmt.Sprintf("title ModsIn Developer Console & powershell -Command \"Get-Content -Path '%s' -Wait\"", LOGFILE))
+	
+	// Dùng lệnh PowerShell có vòng lặp kiểm tra và chờ file log sẵn sàng, tránh bị tắt ngang
+	psCommand := fmt.Sprintf(`
+		while (!(Test-Path '%s')) { Start-Sleep -Milliseconds 200 }
+		Get-Content -Path '%s' -Wait
+	`, LOGFILE, LOGFILE)
+
+	cmd := exec.Command("cmd", "/c", "start", "cmd", "/k", "title ModsIn Developer Console & powershell -Command \""+psCommand+"\"")
 	cmd.Start()
 }
 
