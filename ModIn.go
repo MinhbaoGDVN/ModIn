@@ -126,23 +126,18 @@ func Menu() {
 }
 
 func OpenDevConsoleWindow() {
+	// Đảm bảo file log tồn tại
 	if _, err := os.Stat(LOGFILE); os.IsNotExist(err) {
 		os.WriteFile(LOGFILE, []byte("=== MODSIN DEVELOPER CONSOLE STARTED ===\n"), 0644)
 	}
-	psScriptPath := filepath.Join(ROOT, "watch_log.ps1")
-	scriptContent := fmt.Sprintf(`
-Write-Host "=== MODSIN DEVELOPER CONSOLE CONNECTED ===" -ForegroundColor Green
-while (!(Test-Path '%s')) { 
-    Start-Sleep -Milliseconds 200 
-}
-Get-Content -Path '%s' -Wait
-`, LOGFILE, LOGFILE)
-	
-	os.WriteFile(psScriptPath, []byte(scriptContent), 0644)
 
 	DevLog("Opening separate Developer Console window...")
 
-	cmd := exec.Command("cmd", "/c", "start", "cmd", "/k", fmt.Sprintf("title ModsIn Developer Console & powershell -ExecutionPolicy Bypass -File \"%s\"", psScriptPath))
+	// Dùng PowerShell với lệnh chuẩn, tránh hoàn toàn lỗi truyền đường dẫn
+	// Ta dùng start powershell trực tiếp thay vì qua cmd /c start cmd /k để sạch cú pháp
+	psArgs := fmt.Sprintf("powershell -NoExit -Command \"Write-Host '=== MODSIN DEVELOPER CONSOLE CONNECTED ===' -ForegroundColor Green; while (!(Test-Path '%s')) { Start-Sleep -Milliseconds 200 }; Get-Content -Path '%s' -Wait\"", LOGFILE, LOGFILE)
+
+	cmd := exec.Command("cmd", "/c", "start", "ModsIn_DevConsole", "cmd", "/c", psArgs)
 	cmd.Start()
 }
 
