@@ -39,12 +39,10 @@ var (
 	Cart       []CartItem
 )
 
-// Developer Console Logger (Ghi vào file log và in ra nếu cần)
 func DevLog(format string, a ...interface{}) {
 	timestamp := time.Now().Format("15:04:05")
 	msg := fmt.Sprintf("[%s] [DEV CONSOLE] "+format+"\n", append([]interface{}{timestamp}, a...)...)
 	
-	// Ghi log vào file để cửa sổ console riêng đọc được real-time
 	f, err := os.OpenFile(LOGFILE, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
 		defer f.Close()
@@ -61,7 +59,6 @@ func main() {
 	PACKS = filepath.Join(ROOT, "Modpacks")
 	LOGFILE = filepath.Join(ROOT, "dev_console.log")
 	
-	// Reset file log khi khởi động mới
 	os.WriteFile(LOGFILE, []byte("=== MODSIN DEVELOPER CONSOLE STARTED ===\n"), 0644)
 
 	appdata := os.Getenv("APPDATA")
@@ -102,7 +99,6 @@ func Menu() {
 		CHOICE, _ = reader.ReadString('\n')
 		CHOICE = strings.TrimSpace(CHOICE)
 
-		// Lệnh mở cửa sổ Developer Console riêng khi nhập SC1 (tương đương Shift+C+1)
 		if strings.EqualFold(CHOICE, "SC1") {
 			OpenDevConsoleWindow()
 			continue
@@ -126,17 +122,14 @@ func Menu() {
 }
 
 func OpenDevConsoleWindow() {
-	// Đảm bảo file log tồn tại
 	if _, err := os.Stat(LOGFILE); os.IsNotExist(err) {
 		os.WriteFile(LOGFILE, []byte("=== MODSIN DEVELOPER CONSOLE STARTED ===\n"), 0644)
 	}
 
 	DevLog("Opening separate Developer Console window...")
 
-	// Câu lệnh PowerShell chuẩn, dùng chuỗi được bọc gọn gàng
 	psCommand := fmt.Sprintf("Write-Host '=== MODSIN DEVELOPER CONSOLE CONNECTED ===' -ForegroundColor Green; while (!(Test-Path '%s')) { Start-Sleep -Milliseconds 200 }; Get-Content -Path '%s' -Wait", LOGFILE, LOGFILE)
 
-	// Sử dụng cú pháp start chuẩn của Windows CMD: start "Tiêu đề" powershell -NoExit -Command "..."
 	cmd := exec.Command("cmd", "/c", "start", "ModsIn Dev Console", "powershell", "-NoExit", "-Command", psCommand)
 	cmd.Start()
 }
@@ -250,6 +243,7 @@ func Switch() {
 			fmt.Printf("[%d] %s%s\n", ID, dir.Name(), verInfo)
 		}
 	}
+
 	fmt.Println()
 	fmt.Print("Select Modpack: ")
 	reader := bufio.NewReader(os.Stdin)
@@ -411,8 +405,6 @@ func Delete() {
 	fmt.Printf("\nSwitched to %s successfully.\n", TARGET)
 	Pause()
 }
-
-// === MODRINTH HUB & CART ===
 
 func ModrinthSearchMenu() {
 	Header()
@@ -708,9 +700,19 @@ func ViewCartAndDownload() {
 	Pause()
 }
 
-func DownloadModVersionAndGetDeps(projectID string, packName string, cfg VersionConfig) []string {
-	versionsURL := fmt.Sprintf("https://api.modrinth.com/v2/project/%s/version", projectID)
-	DevLog("Fetching versions from: %s", versionsURL)
+func DownloadModVersionAndGetDeps(identifier string, packName string, cfg VersionConfig) []string {
+	var versionsURL string
+	isVersionID := len(identifier) == 8 && !strings.Contains(identifier, "-")
+
+	var targetSpecificVersionID string
+	if strings.HasPrefix(identifier, "v_dep_") {
+		targetSpecificVersionID = strings.TrimPrefix(identifier, "v_dep_")
+		versionsURL = fmt.Sprintf("https://api.modrinth.com/v2/version/%s", targetSpecificVersionID)
+	} else {
+		versionsURL = fmt.Sprintf("https://api.modrinth.com/v2/project/%s/version", identifier)
+	}
+
+	DevLog("Fetching versions/version from: %s", versionsURL)
 
 	req, err := http.NewRequest("GET", versionsURL, nil)
 	if err != nil {
@@ -718,7 +720,7 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 		return nil
 	}
 	req.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
-	
+
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -728,63 +730,48 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 	}
 	defer resp.Body.Close()
 
-	var versions []struct {
-		Name        string `json:"name"`
-		VersionType string `json:"version_type"`
-		Files       []struct {
-			URL      string `json:"url"`
-			Filename string `json:"filename"`
-		} `json:"files"`
-		GameVersions []string `json:"game_versions"`
-		Loaders      []string `json:"loaders"`
-		Dependencies []struct {
-			ProjectID      string `json:"project_id"`
-			DependencyType string `json:"dependency_type"`
-		} `json:"dependencies"`
+	type DependencyItem struct {
+		ProjectID      string `json:"project_id"`
+		VersionID      string `json:"version_id"`
+		DependencyType string `json:"dependency_type"`
 	}
-
-	json.NewDecoder(resp.Body).Decode(&versions)
+	type FileItem struct {
+		URL      string `json:"url"`
+		Filename string `json:"filename"`
+	}
+	type VersionObject struct {
+		ID           string           `json:"id"`
+		Name         string           `json:"name"`
+		VersionType  string           `json:"version_type"`
+		Files        []FileItem       `json:"files"`
+		GameVersions []string         `json:"game_versions"`
+		Loaders      []string         `json:"loaders"`
+		Dependencies []DependencyItem `json:"dependencies"`
+	}
 
 	var targetFileUrl, targetFileName string
 	var requiredDeps []string
 
-	for _, v := range versions {
-		if v.VersionType != "release" {
-			continue
-		}
-
-		matchMC := false
-		for _, gv := range v.GameVersions {
-			if gv == cfg.MinecraftVersion {
-				matchMC = true
-				break
-			}
-		}
-
-		matchLoader := false
-		for _, l := range v.Loaders {
-			// So sánh chuẩn xác loader (tránh việc forge nhận nhầm sang neoforge)
-			if strings.EqualFold(l, cfg.Loader) {
-				matchLoader = true
-				break
-			}
-		}
-
-		if matchMC && matchLoader && len(v.Files) > 0 {
+	if strings.HasPrefix(identifier, "v_dep_") {
+		var v VersionObject
+		if err := json.NewDecoder(resp.Body).Decode(&v); err == nil && len(v.Files) > 0 {
 			targetFileUrl = v.Files[0].URL
 			targetFileName = v.Files[0].Filename
+
 			for _, dep := range v.Dependencies {
-				if dep.DependencyType == "required" && dep.ProjectID != "" {
+				if dep.VersionID != "" {
+					requiredDeps = append(requiredDeps, "v_dep_"+dep.VersionID)
+				} else if dep.ProjectID != "" {
 					requiredDeps = append(requiredDeps, dep.ProjectID)
 				}
 			}
-			break
 		}
-	}
+	} else {
+		var versions []VersionObject
+		json.NewDecoder(resp.Body).Decode(&versions)
 
-	if targetFileUrl == "" {
 		for _, v := range versions {
-			if v.VersionType == "release" {
+			if v.VersionType != "release" {
 				continue
 			}
 
@@ -808,165 +795,109 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 				targetFileUrl = v.Files[0].URL
 				targetFileName = v.Files[0].Filename
 				for _, dep := range v.Dependencies {
-					if dep.DependencyType == "required" && dep.ProjectID != "" {
+					if dep.VersionID != "" {
+						requiredDeps = append(requiredDeps, "v_dep_"+dep.VersionID)
+					} else if dep.ProjectID != "" {
 						requiredDeps = append(requiredDeps, dep.ProjectID)
 					}
 				}
 				break
 			}
 		}
+
+		if targetFileUrl == "" {
+			for _, v := range versions {
+				if v.VersionType == "release" {
+					continue
+				}
+
+				matchMC := false
+				for _, gv := range v.GameVersions {
+					if gv == cfg.MinecraftVersion {
+						matchMC = true
+						break
+					}
+				}
+
+				matchLoader := false
+				for _, l := range v.Loaders {
+					if strings.EqualFold(l, cfg.Loader) {
+						matchLoader = true
+						break
+					}
+				}
+
+				if matchMC && matchLoader && len(v.Files) > 0 {
+					targetFileUrl = v.Files[0].URL
+					targetFileName = v.Files[0].Filename
+					for _, dep := range v.Dependencies {
+						if dep.VersionID != "" {
+							requiredDeps = append(requiredDeps, "v_dep_"+dep.VersionID)
+						} else if dep.ProjectID != "" {
+							requiredDeps = append(requiredDeps, dep.ProjectID)
+						}
+					}
+					break
+				}
+			}
+		}
 	}
 
 	if targetFileUrl == "" {
-		DevLog("No compatible version found for project ID: %s (MC: %s, Loader: %s)", projectID, cfg.MinecraftVersion, cfg.Loader)
-		fmt.Printf(" -> No compatible version found for MC %s & %s.\n", cfg.MinecraftVersion, cfg.Loader)
+		DevLog("No compatible version found for identifier: %s", identifier)
+		fmt.Printf(" -> No compatible version found.\n")
 		return nil
 	}
 
 	DevLog("Downloading file: %s from URL: %s", targetFileName, targetFileUrl)
 
 	outPath := filepath.Join(PACKS, packName, targetFileName)
-	out, err := os.Create(outPath)
-	if err != nil {
-		DevLog("Failed to create file on disk: %v", err)
-		fmt.Println(" -> Error creating file:", err)
-		return nil
-	}
-	defer out.Close()
+	
+	var downloadSuccess bool
+	for attempt := 1; attempt <= 3; attempt++ {
+		out, err := os.Create(outPath)
+		if err != nil {
+			DevLog("Failed to create file on disk: %v", err)
+			fmt.Println(" -> Error creating file:", err)
+			return nil
+		}
 
-	fileReq, err := http.NewRequest("GET", targetFileUrl, nil)
-	if err != nil {
-		DevLog("Failed to create file download request: %v", err)
-		return nil
-	}
-	fileReq.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
+		fileReq, err := http.NewRequest("GET", targetFileUrl, nil)
+		if err != nil {
+			out.Close()
+			DevLog("Failed to create file download request: %v", err)
+			return nil
+		}
+		fileReq.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
 
-	fileResp, err := client.Do(fileReq)
-	if err != nil {
-		DevLog("Failed to download file from server: %v", err)
-		fmt.Println(" -> Error downloading file from server:", err)
-		return nil
-	}
-	defer fileResp.Body.Close()
-
-	_, err = io.Copy(out, fileResp.Body)
-	if err != nil {
-		DevLog("Error saving file stream: %v", err)
-		fmt.Println(" -> Error saving file stream:", err)
-		return nil
-	}
-
-	DevLog("Successfully downloaded: %s", targetFileName)
-	fmt.Printf(" -> Downloaded successfully: %s\n", targetFileName)
-
-	return requiredDeps
-}
-
-	json.NewDecoder(resp.Body).Decode(&versions)
-
-	var targetFileUrl, targetFileName string
-	var requiredDeps []string
-
-	for _, v := range versions {
-		if v.VersionType != "release" {
+		// Client không giới hạn Timeout (Timeout: 0) để thoải mái tải file nặng
+		downloadClient := &http.Client{Timeout: 0}
+		fileResp, err := downloadClient.Do(fileReq)
+		if err != nil {
+			out.Close()
+			DevLog("Attempt %d: Failed to download file from server: %v", attempt, err)
+			time.Sleep(2 * time.Second)
 			continue
 		}
-		matchMC := false
-		for _, gv := range v.GameVersions {
-			if gv == cfg.MinecraftVersion {
-				matchMC = true
-				break
-			}
-		}
-		matchLoader := false
-		for _, l := range v.Loaders {
-			if strings.EqualFold(l, cfg.Loader) {
-				matchLoader = true
-				break
-			}
+
+		_, err = io.Copy(out, fileResp.Body)
+		fileResp.Body.Close()
+		out.Close()
+
+		if err != nil {
+			DevLog("Attempt %d: Error saving file stream: %v", attempt, err)
+			fmt.Printf(" -> Warning: Download interrupted (%v). Retrying (%d/3)...\n", err, attempt)
+			time.Sleep(2 * time.Second)
+			continue
 		}
 
-		if matchMC && matchLoader && len(v.Files) > 0 {
-			targetFileUrl = v.Files[0].URL
-			targetFileName = v.Files[0].Filename
-			for _, dep := range v.Dependencies {
-				if dep.DependencyType == "required" && dep.ProjectID != "" {
-					requiredDeps = append(requiredDeps, dep.ProjectID)
-				}
-			}
-			break
-		}
+		downloadSuccess = true
+		break
 	}
 
-	if targetFileUrl == "" {
-		for _, v := range versions {
-			if v.VersionType == "release" {
-				continue
-			}
-			matchMC := false
-			for _, gv := range v.GameVersions {
-				if gv == cfg.MinecraftVersion {
-					matchMC = true
-					break
-				}
-			}
-			matchLoader := false
-			for _, l := range v.Loaders {
-				if strings.EqualFold(l, cfg.Loader) {
-					matchLoader = true
-					break
-				}
-			}
-
-			if matchMC && matchLoader && len(v.Files) > 0 {
-				targetFileUrl = v.Files[0].URL
-				targetFileName = v.Files[0].Filename
-				for _, dep := range v.Dependencies {
-					if dep.DependencyType == "required" && dep.ProjectID != "" {
-						requiredDeps = append(requiredDeps, dep.ProjectID)
-					}
-				}
-				break
-			}
-		}
-	}
-
-	if targetFileUrl == "" {
-		DevLog("No compatible version found for project ID: %s", projectID)
-		fmt.Println(" -> No compatible version found for this MC version/loader.")
-		return nil
-	}
-
-	DevLog("Downloading file: %s from URL: %s", targetFileName, targetFileUrl)
-
-	outPath := filepath.Join(PACKS, packName, targetFileName)
-	out, err := os.Create(outPath)
-	if err != nil {
-		DevLog("Failed to create file on disk: %v", err)
-		fmt.Println(" -> Error creating file:", err)
-		return nil
-	}
-	defer out.Close()
-
-	fileReq, err := http.NewRequest("GET", targetFileUrl, nil)
-	if err != nil {
-		DevLog("Failed to create file download request: %v", err)
-		return nil
-	}
-	fileReq.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
-
-	fileResp, err := client.Do(fileReq)
-	if err != nil {
-		DevLog("Failed to download file from server: %v", err)
-		fmt.Println(" -> Error downloading file from server:", err)
-		return nil
-	}
-	defer fileResp.Body.Close()
-
-	_, err = io.Copy(out, fileResp.Body)
-	if err != nil {
-		DevLog("Error saving file stream: %v", err)
-		fmt.Println(" -> Error saving file stream:", err)
+	if !downloadSuccess {
+		DevLog("Failed to download %s after 3 attempts.", targetFileName)
+		fmt.Println(" -> Error: Failed to download file after multiple attempts.")
 		return nil
 	}
 
@@ -975,6 +906,7 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 
 	return requiredDeps
 }
+
 
 func Pause() {
 	fmt.Println()
