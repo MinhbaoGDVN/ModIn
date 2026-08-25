@@ -159,7 +159,7 @@ func Count() {
 func Header() {
 	ClearScreen()
 	fmt.Println("============================================")
-	fmt.Println("          ModsIn v3.4 - Dev Edition")
+	fmt.Println("          ModsIn Release v2.0 ")
 	fmt.Println("        Minecraft Modpack Manager")
 	fmt.Println("============================================")
 	fmt.Println()
@@ -502,7 +502,7 @@ func ModrinthHub(packName string, cfg VersionConfig) {
 		fmt.Printf("Target Modpack: [ %s ] (MC: %s | Loader: %s)\n", packName, cfg.MinecraftVersion, cfg.Loader)
 		fmt.Printf("Cart Items: %d mods\n", len(Cart))
 		fmt.Println("--------------------------------------------")
-		fmt.Println("🔥 POPULAR MODS (Quick Add):")
+		fmt.Println("POPULAR MODS (Quick Add):")
 		if len(popularHits) == 0 {
 			fmt.Println("(Could not load popular mods or none found)")
 		} else {
@@ -742,6 +742,125 @@ func DownloadModVersionAndGetDeps(projectID string, packName string, cfg Version
 			DependencyType string `json:"dependency_type"`
 		} `json:"dependencies"`
 	}
+
+	json.NewDecoder(resp.Body).Decode(&versions)
+
+	var targetFileUrl, targetFileName string
+	var requiredDeps []string
+
+	for _, v := range versions {
+		if v.VersionType != "release" {
+			continue
+		}
+
+		matchMC := false
+		for _, gv := range v.GameVersions {
+			if gv == cfg.MinecraftVersion {
+				matchMC = true
+				break
+			}
+		}
+
+		matchLoader := false
+		for _, l := range v.Loaders {
+			// So sánh chuẩn xác loader (tránh việc forge nhận nhầm sang neoforge)
+			if strings.EqualFold(l, cfg.Loader) {
+				matchLoader = true
+				break
+			}
+		}
+
+		if matchMC && matchLoader && len(v.Files) > 0 {
+			targetFileUrl = v.Files[0].URL
+			targetFileName = v.Files[0].Filename
+			for _, dep := range v.Dependencies {
+				if dep.DependencyType == "required" && dep.ProjectID != "" {
+					requiredDeps = append(requiredDeps, dep.ProjectID)
+				}
+			}
+			break
+		}
+	}
+
+	if targetFileUrl == "" {
+		for _, v := range versions {
+			if v.VersionType == "release" {
+				continue
+			}
+
+			matchMC := false
+			for _, gv := range v.GameVersions {
+				if gv == cfg.MinecraftVersion {
+					matchMC = true
+					break
+				}
+			}
+
+			matchLoader := false
+			for _, l := range v.Loaders {
+				if strings.EqualFold(l, cfg.Loader) {
+					matchLoader = true
+					break
+				}
+			}
+
+			if matchMC && matchLoader && len(v.Files) > 0 {
+				targetFileUrl = v.Files[0].URL
+				targetFileName = v.Files[0].Filename
+				for _, dep := range v.Dependencies {
+					if dep.DependencyType == "required" && dep.ProjectID != "" {
+						requiredDeps = append(requiredDeps, dep.ProjectID)
+					}
+				}
+				break
+			}
+		}
+	}
+
+	if targetFileUrl == "" {
+		DevLog("No compatible version found for project ID: %s (MC: %s, Loader: %s)", projectID, cfg.MinecraftVersion, cfg.Loader)
+		fmt.Printf(" -> No compatible version found for MC %s & %s.\n", cfg.MinecraftVersion, cfg.Loader)
+		return nil
+	}
+
+	DevLog("Downloading file: %s from URL: %s", targetFileName, targetFileUrl)
+
+	outPath := filepath.Join(PACKS, packName, targetFileName)
+	out, err := os.Create(outPath)
+	if err != nil {
+		DevLog("Failed to create file on disk: %v", err)
+		fmt.Println(" -> Error creating file:", err)
+		return nil
+	}
+	defer out.Close()
+
+	fileReq, err := http.NewRequest("GET", targetFileUrl, nil)
+	if err != nil {
+		DevLog("Failed to create file download request: %v", err)
+		return nil
+	}
+	fileReq.Header.Set("User-Agent", "ModsInManager/1.0 (contact@modsin.local)")
+
+	fileResp, err := client.Do(fileReq)
+	if err != nil {
+		DevLog("Failed to download file from server: %v", err)
+		fmt.Println(" -> Error downloading file from server:", err)
+		return nil
+	}
+	defer fileResp.Body.Close()
+
+	_, err = io.Copy(out, fileResp.Body)
+	if err != nil {
+		DevLog("Error saving file stream: %v", err)
+		fmt.Println(" -> Error saving file stream:", err)
+		return nil
+	}
+
+	DevLog("Successfully downloaded: %s", targetFileName)
+	fmt.Printf(" -> Downloaded successfully: %s\n", targetFileName)
+
+	return requiredDeps
+}
 
 	json.NewDecoder(resp.Body).Decode(&versions)
 
